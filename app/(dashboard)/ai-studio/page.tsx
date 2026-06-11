@@ -65,7 +65,7 @@ export default async function AiStudioPage() {
     const dayEnd = new Date(dayStart.getTime() + DAY_MS)
     return {
       label: dayStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      count: aiByDay.filter(s => s.createdAt >= dayStart && s.createdAt < dayEnd).length,
+      count: aiByDay.filter((s: { createdAt: Date }) => s.createdAt >= dayStart && s.createdAt < dayEnd).length,
     }
   })
   const maxDay = Math.max(...dailyCounts.map(d => d.count), 1)
