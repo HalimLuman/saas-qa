@@ -66,7 +66,7 @@ export async function POST(
         let passed = 0
         let failed = 0
 
-        async function runTest(row: typeof run.results[number]) {
+        async function runTest(row: NonNullable<typeof run>['results'][number]) {
           const tc = row.testCase
           send({ type: 'test_begin', testCaseId: tc.id, title: tc.title })
 

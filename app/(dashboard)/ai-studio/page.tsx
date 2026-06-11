@@ -8,6 +8,17 @@ import { PLAN_LIMITS } from '@/lib/limits'
 const ACCENTS = ['#3b82f6', '#0ea5e9', '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
 const DAY_MS = 24 * 60 * 60 * 1000
 
+type ProjectRow = { id: string; name: string; _count: { testCases: number } }
+type SessionRow = {
+  id: string
+  projectId: string
+  inputText: string
+  inputMode: string
+  createdAt: Date
+  savedCaseIds: string
+  project: { id: string; name: string }
+}
+
 function timeAgo(d: Date) {
   const mins = Math.floor((Date.now() - d.getTime()) / 60000)
   if (mins < 60) return `${mins}m ago`
@@ -71,10 +82,10 @@ export default async function AiStudioPage() {
   const maxDay = Math.max(...dailyCounts.map(d => d.count), 1)
 
   // Per-project AI usage
-  const perProject = projects.map((p, i) => ({
+  const perProject = projects.map((p: ProjectRow, i: number) => ({
     ...p,
     accent: ACCENTS[i % ACCENTS.length],
-    sessions: recentSessions.filter(s => s.projectId === p.id).length,
+    sessions: recentSessions.filter((s: SessionRow) => s.projectId === p.id).length,
     totalAllTime: totalSessions, // we'd need a grouped query; using approximation
   }))
 
@@ -234,7 +245,7 @@ export default async function AiStudioPage() {
             <div>Description</div><div>Project</div><div>Saved</div><div>When</div>
           </div>
 
-          {recentSessions.map(s => {
+          {recentSessions.map((s: SessionRow) => {
             let savedCount = 0
             try { savedCount = (JSON.parse(s.savedCaseIds) as string[]).length } catch { /* ignore */ }
             const preview = s.inputText.length > 80 ? s.inputText.slice(0, 80) + '…' : s.inputText

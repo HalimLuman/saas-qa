@@ -58,16 +58,16 @@ export async function POST(
     let result: { url: string; externalId: string }
 
     if (integration.provider === 'AZURE_DEVOPS') {
-      const r = await adoCreateBug(config as AzureDevOpsConfig, bugInput)
+      const r = await adoCreateBug(config as unknown as AzureDevOpsConfig, bugInput)
       result = { url: r.url, externalId: String(r.id) }
     } else if (integration.provider === 'JIRA') {
-      const r = await jiraCreateIssue(config as JiraConfig, bugInput)
+      const r = await jiraCreateIssue(config as unknown as JiraConfig, bugInput)
       result = { url: r.url, externalId: r.key }
     } else if (integration.provider === 'GITHUB') {
-      const r = await ghCreateIssue(config as GitHubConfig, bugInput)
+      const r = await ghCreateIssue(config as unknown as GitHubConfig, bugInput)
       result = { url: r.url, externalId: String(r.number) }
     } else if (integration.provider === 'LINEAR') {
-      const r = await linearCreateIssue(config as LinearConfig, bugInput)
+      const r = await linearCreateIssue(config as unknown as LinearConfig, bugInput)
       result = { url: r.url, externalId: r.id }
     } else {
       return NextResponse.json({ error: `Unsupported provider: ${integration.provider}` }, { status: 400 })

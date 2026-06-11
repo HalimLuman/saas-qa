@@ -86,7 +86,7 @@ const PLANS = [
 
 export default function BillingClient({ plan, hasStripe, periodEnd, gracePeriodEnd, usage }: Props) {
   const [loading, setLoading]     = useState<string | null>(null)
-  const [interval, setInterval]   = useState<'monthly' | 'annual'>('monthly')
+  const [interval, setBillingInterval]   = useState<'monthly' | 'annual'>('monthly')
   const [upgraded, setUpgraded]   = useState(false)
 
   const router       = useRouter()
@@ -248,7 +248,7 @@ export default function BillingClient({ plan, hasStripe, periodEnd, gracePeriodE
           style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
         >
           <button
-            onClick={() => setInterval('monthly')}
+            onClick={() => setBillingInterval('monthly')}
             className="px-5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150"
             style={
               interval === 'monthly'
@@ -259,7 +259,7 @@ export default function BillingClient({ plan, hasStripe, periodEnd, gracePeriodE
             Monthly
           </button>
           <button
-            onClick={() => setInterval('annual')}
+            onClick={() => setBillingInterval('annual')}
             className="px-5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150 flex items-center gap-1.5"
             style={
               interval === 'annual'
