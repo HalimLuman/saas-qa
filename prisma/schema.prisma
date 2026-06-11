@@ -1,0 +1,523 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String?
+  avatarUrl    String?
+  plan         Plan     @default(FREE)
+  aiCallsToday Int      @default(0)
+  aiCallsReset DateTime @default(now())
+
+  // Stripe billing
+  stripeCustomerId       String?  @unique
+  stripeSubscriptionId   String?  @unique
+  stripeCurrentPeriodEnd DateTime?
+  gracePeriodEnd         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects           Project[]
+  accounts           Account[]
+  sessions           Session[]
+  generationSessions GenerationSession[]
+  activityEvents     ActivityEvent[]
+  aiFeedback         AiFeedback[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  testCases          TestCase[]
+  regressionSuites   RegressionSuite[]
+  bugReports         BugReport[]
+  areas              Area[]
+  settings           ProjectSettings?
+  generationSessions GenerationSession[]
+  activityEvents     ActivityEvent[]
+  webhooks           WebhookIntegration[]
+  integrations       Integration[]
+  apiCollections     ApiCollection[]
+  apiEnvironments    ApiEnvironment[]
+
+  @@index([userId])
+}
+
+model ProjectSettings {
+  id             String   @id @default(cuid())
+  projectId      String   @unique
+  customRules    String?
+  defaultPriority Priority @default(P2)
+  modules        String?  // JSON array of module names
+  bugCopyFormat  String   @default("MARKDOWN") // MARKDOWN, JIRA, LINEAR, GITHUB
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Area {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+  color       String   @default("#8b5cf6")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  testCases  TestCase[]
+  bugReports BugReport[]
+
+  @@index([projectId])
+}
+
+model TestCase {
+  id                String       @id @default(cuid())
+  projectId         String
+  areaId            String?
+  title             String
+  module            String?
+  preconditions     String?
+  steps             String
+  expectedResult    String
+  priority          Priority     @default(P2)
+  category          TestCategory @default(FUNCTIONAL)
+  status            TestStatus   @default(DRAFT)
+  sourceType        SourceType   @default(AI_GENERATED)
+  sourceRecordingId String?
+  isArchived        Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  area            Area?             @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  suites          SuiteTestCase[]
+  suiteRunResults SuiteRunResult[]
+  versions        TestCaseVersion[]
+
+  @@index([projectId, module])
+  @@index([projectId, priority])
+  @@index([projectId, areaId])
+  @@index([projectId, createdAt])
+  @@index([projectId, isArchived, createdAt])
+  @@index([projectId, title])
+}
+
+model RegressionSuite {
+  id             String       @id @default(cuid())
+  projectId      String
+  name           String
+  description    String?
+  filters        String?
+  cadence        SuiteCadence @default(MANUAL)
+  ownerName      String?
+  failThreshold  Int          @default(95)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  testCases SuiteTestCase[]
+  runs      SuiteRun[]
+
+  @@index([projectId])
+}
+
+model SuiteTestCase {
+  id         String @id @default(cuid())
+  suiteId    String
+  testCaseId String
+  sortOrder  Int    @default(0)
+
+  suite    RegressionSuite @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  testCase TestCase        @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@unique([suiteId, testCaseId])
+  @@index([suiteId])
+}
+
+model SuiteRun {
+  id          String         @id @default(cuid())
+  suiteId     String
+  name        String?
+  status      SuiteRunStatus @default(IN_PROGRESS)
+  startedAt   DateTime       @default(now())
+  completedAt DateTime?
+
+  suite   RegressionSuite  @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  results SuiteRunResult[]
+
+  @@index([suiteId, startedAt])
+}
+
+model SuiteRunResult {
+  id         String    @id @default(cuid())
+  runId      String
+  testCaseId String
+  result     RunResult @default(NOT_RUN)
+  notes      String?
+  autoStatus String?   // PENDING | RUNNING | PASSED | FAILED | ERROR
+  autoLog    String?   // JSON: [{ action, status, error? }]
+  screenshot String?   // base64 JPEG of final state
+  updatedAt  DateTime  @updatedAt
+
+  run      SuiteRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  testCase TestCase @relation(fields: [testCaseId], references: [id])
+
+  @@unique([runId, testCaseId])
+}
+
+model BugReport {
+  id                String    @id @default(cuid())
+  projectId         String
+  areaId            String?
+  sequenceNum       Int
+  title             String
+  description       String
+  stepsToReproduce  String
+  expectedBehavior  String?
+  actualBehavior    String?
+  severity          Severity  @default(MEDIUM)
+  status            BugStatus @default(OPEN)
+  environment       String?
+  attachments       String?
+  sourceRecordingId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  area    Area?   @relation(fields: [areaId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status])
+  @@index([projectId, severity])
+  @@index([projectId, areaId])
+  @@index([projectId, status, createdAt])
+}
+
+model GenerationSession {
+  id          String         @id @default(cuid())
+  projectId   String
+  userId      String
+  inputText   String
+  inputMode   GenerationMode @default(FREE_TEXT)
+  filterType  String?
+  outputCases String         // JSON: full AI response
+  savedCaseIds String        @default("[]") // JSON: array of saved case IDs
+  tokenUsage  String         @default("{}") // JSON: { inputTokens, outputTokens }
+  createdAt   DateTime       @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feedback AiFeedback[]
+
+  @@index([projectId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model AiFeedback {
+  id             String   @id @default(cuid())
+  userId         String
+  generationId   String
+  testCaseIndex  Int
+  rating         Rating
+  reason         String?
+  createdAt      DateTime @default(now())
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generation GenerationSession @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@index([generationId])
+}
+
+model ActivityEvent {
+  id         String   @id @default(cuid())
+  projectId  String
+  userId     String
+  action     String   // "test_case.created", "bug.status_changed", "suite.exported"
+  targetType String   // "TestCase", "BugReport", "RegressionSuite"
+  targetId   String
+  metadata   String?  // JSON: { oldStatus, newStatus, etc. }
+  createdAt  DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model TestCaseVersion {
+  id             String       @id @default(cuid())
+  testCaseId     String
+  versionNumber  Int
+  title          String
+  module         String?
+  preconditions  String?
+  steps          String
+  expectedResult String
+  priority       Priority
+  category       TestCategory
+  status         TestStatus
+  createdAt      DateTime     @default(now())
+  createdById    String?
+
+  testCase TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@index([testCaseId, versionNumber])
+}
+
+model Integration {
+  id        String              @id @default(cuid())
+  projectId String
+  provider  IntegrationProvider
+  name      String
+  config    String              // JSON: provider-specific config (tokens masked on read)
+  isActive  Boolean             @default(true)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model WebhookIntegration {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  url       String
+  platform  String   @default("CUSTOM")
+  events    String
+  headers   String?
+  secret    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model ApiCollection {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requests ApiRequest[]
+
+  @@index([projectId])
+}
+
+model ApiRequest {
+  id           String   @id @default(cuid())
+  collectionId String
+  name         String
+  method       String   @default("GET")
+  url          String   @default("")
+  headers      String?
+  queryParams  String?
+  body         String?
+  bodyType     String?
+  auth         String?
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  collection ApiCollection   @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  assertions ApiAssertion[]
+  runs       ApiRequestRun[]
+
+  @@index([collectionId])
+}
+
+model ApiAssertion {
+  id        String  @id @default(cuid())
+  requestId String
+  type      String
+  target    String
+  operator  String
+  value     String?
+  sortOrder Int     @default(0)
+
+  request ApiRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+}
+
+model ApiRequestRun {
+  id               String   @id @default(cuid())
+  requestId        String
+  statusCode       Int
+  responseHeaders  String
+  responseBody     String
+  durationMs       Int
+  passed           Boolean
+  assertionResults String
+  createdAt        DateTime @default(now())
+
+  request ApiRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, createdAt])
+}
+
+model ApiEnvironment {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  variables String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+// ── Enums ─────────────────────────────────────────────────────────
+
+enum Plan {
+  FREE
+  PRO
+  TEAM
+}
+
+enum Priority {
+  P0
+  P1
+  P2
+  P3
+}
+
+enum TestCategory {
+  FUNCTIONAL
+  NEGATIVE
+  BOUNDARY
+  SECURITY
+  PERFORMANCE
+  ACCESSIBILITY
+}
+
+enum TestStatus {
+  DRAFT
+  APPROVED
+  DEPRECATED
+}
+
+enum SourceType {
+  MANUAL
+  AI_GENERATED
+  FROM_RECORDING
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum BugStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  WONT_FIX
+}
+
+enum SuiteCadence {
+  EVERY_PR
+  NIGHTLY
+  WEEKLY
+  MANUAL
+}
+
+enum SuiteRunStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABORTED
+}
+
+enum RunResult {
+  NOT_RUN
+  PASSED
+  FAILED
+  BLOCKED
+  SKIPPED
+}
+
+enum GenerationMode {
+  FREE_TEXT
+  USER_STORY
+  API_SPEC
+}
+
+enum Rating {
+  POSITIVE
+  NEGATIVE
+}
+
+enum IntegrationProvider {
+  AZURE_DEVOPS
+  JIRA
+  GITHUB
+  LINEAR
+}
