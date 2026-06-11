@@ -4,6 +4,16 @@ import { redirect } from 'next/navigation'
 import { Bug } from 'lucide-react'
 import AllBugsClient from './all-bugs-client'
 
+type BugRow = {
+  id: string
+  sequenceNum: number
+  title: string
+  severity: string
+  status: string
+  createdAt: Date
+  project: { id: string; name: string }
+}
+
 export default async function AllBugsPage() {
   const session = await auth()
   if (!session?.user?.id) redirect('/login')
@@ -22,12 +32,12 @@ export default async function AllBugsPage() {
     }),
   ])
 
-  const critical    = bugs.filter(b => b.severity === 'CRITICAL' && (b.status === 'OPEN' || b.status === 'IN_PROGRESS')).length
-  const high        = bugs.filter(b => b.severity === 'HIGH'     && (b.status === 'OPEN' || b.status === 'IN_PROGRESS')).length
-  const open        = bugs.filter(b => b.status === 'OPEN' || b.status === 'IN_PROGRESS').length
-  const resolved    = bugs.filter(b => b.status === 'RESOLVED' || b.status === 'CLOSED').length
+  const critical    = bugs.filter((b: BugRow) => b.severity === 'CRITICAL' && (b.status === 'OPEN' || b.status === 'IN_PROGRESS')).length
+  const high        = bugs.filter((b: BugRow) => b.severity === 'HIGH'     && (b.status === 'OPEN' || b.status === 'IN_PROGRESS')).length
+  const open        = bugs.filter((b: BugRow) => b.status === 'OPEN' || b.status === 'IN_PROGRESS').length
+  const resolved    = bugs.filter((b: BugRow) => b.status === 'RESOLVED' || b.status === 'CLOSED').length
 
-  const serialized = bugs.map(b => ({
+  const serialized = bugs.map((b: BugRow) => ({
     id: b.id,
     sequenceNum: b.sequenceNum,
     title: b.title,
