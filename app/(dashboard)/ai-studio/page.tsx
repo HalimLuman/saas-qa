@@ -196,7 +196,7 @@ export default async function AiStudioPage() {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-            {projects.map((p, i) => {
+            {projects.map((p: ProjectRow, i: number) => {
               const accent = ACCENTS[i % ACCENTS.length]
               return (
                 <Link key={p.id} href={`/project/${p.id}/generate`} style={{ textDecoration: 'none', display: 'block' }}>
